@@ -1,0 +1,231 @@
+#!/usr/bin/env python
+
+import argparse
+import skimage.io
+import numpy as np
+import os
+import time
+import tempfile
+from tqdm import tqdm
+
+os.environ['GLOG_minloglevel'] = '2' 
+import caffe
+
+NOISE_LEVELS = [0.0000, 0.0784]  # Min/Max noise levels we trained on
+CROP = 17  # Temporary fix for the noise-aware model
+
+def _psnr(a, b, crop=0, maxval=1.0):
+    """Computes PSNR on a cropped version of a,b"""
+
+    if crop > 0:
+        aa = a[crop:-crop, crop:-crop, :]
+        bb = b[crop:-crop, crop:-crop, :]
+    else:
+        aa = a
+        bb = b
+
+    d = np.mean(np.square(aa-bb))
+    d = -10*np.log10(d/(maxval*maxval))
+    return d
+
+
+def _uint2float(I):
+    I = I.astype(np.float32)
+    I = I*0.00390625
+    return I
+
+
+def _float2uint(I):
+    I /= 0.00390625
+    I += 0.5
+    I = np.clip(I,0,255)
+    I = I.astype(np.uint8)
+    return I
+
+
+def _blob_to_image(blob):
+    # input shape h,w,c
+    shape =  blob.data.shape
+    sz = shape[1:]
+    out = np.copy(blob.data)
+    out = np.reshape(out, sz)
+    out = out.transpose((1,2,0))
+    return out
+
+def _make_mosaic(im, mosaic_type):
+    if mosaic_type == 'bayer':
+        layer = 'BayerMosaickLayer'
+    elif mosaic_type == 'xtrans':
+        layer = 'XTransMosaickLayer'
+    else:
+        raise Exception('Unknown mosaick type {}.'.format(mosaic_type))
+    h, w, c = im.shape
+    with tempfile.NamedTemporaryFile(mode='w+', delete=False) as f:
+        f.write("""name: 'pythonnet' force_backward: true
+        input: 'data' input_shape { dim:1 dim: %d dim: %d dim: %d }
+        layer { type: 'Python' name: 'output' bottom: 'data' top: 'output'
+          python_param { module: 'demosaicnet.layers' layer: '%s' } }""" % (c, h, w, layer))
+        fname = f.name
+    net = caffe.Net(fname, caffe.TEST)
+    os.remove(fname)
+    net.blobs['data'].data[...] = im.transpose([2, 0, 1])[...]
+    out = np.squeeze(net.blobs['output'].data).transpose([1, 2, 0])
+    net.forward()
+    return out
+
+
+def demosaick(net, M, noise=0, psize=512):
+    start_time = time.time()
+    h,w = M.shape[:2]
+
+    # Process in tiles
+    if 'output' in net.blobs.keys():
+        crop = (net.blobs['mosaick'].data.shape[-1]
+                - net.blobs['output'].data.shape[-1])/2
+    else:
+        crop = CROP
+
+    psize = min(min(psize,h),w)
+    psize -= psize % 2
+    patch_step = psize
+    patch_step -= 2*crop
+    shift_factor = 2
+
+    # Result array
+    R = np.zeros(M.shape, dtype = np.float32)
+
+    ntiles = (w/patch_step+1)*(h/patch_step+1)
+    with tqdm(total=ntiles, unit='tiles', unit_scale=True) as pbar:
+        for start_x in xrange(0,w-2*crop,patch_step):
+            for start_y in xrange(0,h-2*crop,patch_step):
+                end_x = start_x+psize
+                end_y = start_y+psize
+                if end_x > w:
+                    end_x = w
+                    end_x = shift_factor*((end_x)/shift_factor)
+                    start_x = end_x-psize
+                if end_y > h:
+                    end_y = h
+                    end_y = shift_factor*((end_y)/shift_factor)
+                    start_y = end_y-psize
+
+
+                tileM = M[start_y:end_y, start_x:end_x, :] 
+                tileM = tileM[np.newaxis,:,:,:]
+                tileM = tileM.transpose((0,3,1,2))
+
+                net.blobs['mosaick'].reshape(*tileM.shape)
+                net.blobs['mosaick'].data[...] = tileM
+
+                if 'noise_level' in net.blobs.keys():
+                    noise_shape = [1,]
+                    net.blobs['noise_level'].reshape(*noise_shape)
+                    net.blobs['noise_level'].data[...] = noise
+
+                net.forward()
+
+                out = net.blobs['output']
+                out = _blob_to_image(out)
+                s = out.shape[0]
+
+                R[start_y+crop:start_y+crop+s,
+                  start_x+crop:start_x+crop+s,:] = out
+
+                pbar.update(1)
+
+    R[R<0] = 0.0
+    R[R>1] = 1.0
+
+    runtime = (time.time()-start_time)*1000  # in ms
+
+    return R, runtime
+
+def main(args):
+    print '+ Processing {}'.format(args.input)
+    Iref = skimage.io.imread(args.input)
+    dtype = Iref.dtype
+    if dtype not in [np.uint8, np.uint16]:
+        raise ValueError('Input type not handled: {}'.format(dtype))
+    Iref = skimage.img_as_float(Iref)
+
+    if len(Iref.shape) == 2:
+        # Offset the image to match the our mosaic pattern
+        if args.offset_x == 1:
+            print '  - offset x'
+            Iref = Iref[:, 1:]
+
+        if args.offset_y == 1:
+            print '  - offset y'
+            Iref = Iref[1:, :]
+        has_groundtruth = False
+        Iref = np.dstack((Iref, Iref, Iref))
+    else:
+        # No need for offsets if we have the ground-truth
+        has_groundtruth = True
+
+    if has_groundtruth and args.noise > 0:
+        print '  - adding noise sigma={:.3f}'.format(args.noise)
+        I = Iref + np.random.normal(
+                loc=0.0, scale = args.noise , size = Iref.shape )
+    else:
+        I = Iref
+
+    print '  - making mosaick'
+    M = _make_mosaic(I, args.mosaic_type)
+
+    arch_path = os.path.join(args.model, 'deploy.prototxt')
+    weights_path = os.path.join(args.model, 'weights.caffemodel')
+    if args.gpu:
+        print '  - using GPU'
+        caffe.set_mode_gpu()
+        psize = 128
+    else:
+        print '  - using CPU'
+        caffe.set_mode_cpu()
+        psize = 512
+    net = caffe.Net(arch_path, weights_path, caffe.TEST)
+
+    R, runtime = demosaick(net, M, args.noise, psize)
+
+    if has_groundtruth:
+        p = _psnr(R, Iref, crop=CROP)
+        diff = np.abs((R-Iref))
+        diff /= np.amax(diff)
+        out = np.hstack((Iref, I, M, R, diff))
+        out = _float2uint(out)
+        print '  PSNR = {:.1f} dB, time = {} ms'.format(p, int(runtime))
+    else:
+        print '  - raw image without groundtruth, bypassing metric'
+        if dtype == np.uint16:
+            out = skimage.img_as_uint(R)
+        else:
+            out = skimage.img_as_ubyte(R)
+
+
+    outputname = os.path.join(args.output, os.path.split(args.input)[-1])
+    skimage.io.imsave(outputname, out)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('--input', type=str, default='data/images/test/hdrvdp/000/000003.png')
+    parser.add_argument('--output', type=str, default='output')
+    parser.add_argument('--model', type=str, default='testnet')
+    parser.add_argument('--noise', type=float, default=0.0)
+    parser.add_argument('--offset-x', type=int, default=0)
+    parser.add_argument('--offset-y', type=int, default=0)
+    parser.add_argument('--gpu', dest='gpu', action='store_true')
+    parser.add_argument('--mosaic_type', type=str, default='bayer',
+                        choices=['bayer', 'xtrans'])
+
+    parser.set_defaults(gpu=False)
+
+    args = parser.parse_args()
+
+    if args.noise > NOISE_LEVELS[1] or args.noise < NOISE_LEVELS[0]:
+        msg = 'The model was trained on noise levels in [{}, {}]'.format(
+                NOISE_LEVELS[0], NOISE_LEVELS[1])
+        raise ValueError(msg)
+
+    main(args)

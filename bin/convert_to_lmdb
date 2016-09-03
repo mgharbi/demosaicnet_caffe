@@ -1,0 +1,56 @@
+#!/usr/bin/env python
+
+import argparse
+import os
+import re
+import shutil
+
+import caffe
+import lmdb
+import numpy as np
+from PIL import Image
+
+DB_MAP_SIZE = 1099511627776
+DB_KEY_BYTES = 4
+PATCH_SIZE = 128
+
+def main(args):
+    regexp = re.compile(r'.*\.png')
+    env = lmdb.open(args.output, map_size = DB_MAP_SIZE)
+    n = 0
+    for d, dirs, files in os.walk(args.input):
+        txn = env.begin(write=True)
+        for f in files:
+            if regexp.match(f):
+                print d, f
+                im = Image.open(os.path.join(d, f))
+                w, h = im.size
+                if w != PATCH_SIZE or h != PATCH_SIZE:
+                    raise ValueError("Patch size should be {}, got {}x{}".format(
+                                PATCH_SIZE, w,h))
+
+                im = np.array(im)
+                h, w, c = im.shape
+                if c == 1:
+                    raise ValueError("Does not accept monochromatic images.")
+
+                if c == 4:
+                    im = im[:, :, :3]
+
+                im = im.transpose((2,0,1))
+
+                key = np.random.bytes(DB_KEY_BYTES)
+                datum = caffe.io.array_to_datum(im)
+                txn.put(key, datum.SerializeToString())
+
+                n += 1
+        txn.commit()
+    env.close()
+    
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--input', type=str)
+    parser.add_argument('--output', type=str)
+    args = parser.parse_args()
+    main(args)
