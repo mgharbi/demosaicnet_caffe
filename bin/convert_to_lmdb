@@ -17,12 +17,12 @@ PATCH_SIZE = 128
 def main(args):
     regexp = re.compile(r'.*\.png')
     env = lmdb.open(args.output, map_size = DB_MAP_SIZE)
-    n = 0
+    n = 1
     for d, dirs, files in os.walk(args.input):
         txn = env.begin(write=True)
         for f in files:
             if regexp.match(f):
-                print d, f
+                print 'image', n, f
                 im = Image.open(os.path.join(d, f))
                 w, h = im.size
                 if w != PATCH_SIZE or h != PATCH_SIZE:
