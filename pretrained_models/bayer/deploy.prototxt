@@ -67,7 +67,7 @@ layer {
     convolution_param {  
         num_output: 64
         kernel_size: 3
-        pad: 1
+        pad: 0
         stride:1
         dilation: 1
         weight_filler {
@@ -98,7 +98,7 @@ layer {
     convolution_param {  
         num_output: 64
         kernel_size: 3
-        pad: 1
+        pad: 0
         stride:1
         dilation: 1
         weight_filler {
@@ -129,7 +129,7 @@ layer {
     convolution_param {  
         num_output: 64
         kernel_size: 3
-        pad: 1
+        pad: 0
         stride:1
         dilation: 1
         weight_filler {
@@ -160,7 +160,7 @@ layer {
     convolution_param {  
         num_output: 64
         kernel_size: 3
-        pad: 1
+        pad: 0
         stride:1
         dilation: 1
         weight_filler {
@@ -191,7 +191,7 @@ layer {
     convolution_param {  
         num_output: 64
         kernel_size: 3
-        pad: 1
+        pad: 0
         stride:1
         dilation: 1
         weight_filler {
@@ -222,7 +222,7 @@ layer {
     convolution_param {  
         num_output: 64
         kernel_size: 3
-        pad: 1
+        pad: 0
         stride:1
         dilation: 1
         weight_filler {
@@ -253,7 +253,7 @@ layer {
     convolution_param {  
         num_output: 64
         kernel_size: 3
-        pad: 1
+        pad: 0
         stride:1
         dilation: 1
         weight_filler {
@@ -284,7 +284,7 @@ layer {
     convolution_param {  
         num_output: 64
         kernel_size: 3
-        pad: 1
+        pad: 0
         stride:1
         dilation: 1
         weight_filler {
@@ -315,7 +315,7 @@ layer {
     convolution_param {  
         num_output: 64
         kernel_size: 3
-        pad: 1
+        pad: 0
         stride:1
         dilation: 1
         weight_filler {
@@ -346,7 +346,7 @@ layer {
     convolution_param {  
         num_output: 64
         kernel_size: 3
-        pad: 1
+        pad: 0
         stride:1
         dilation: 1
         weight_filler {
@@ -377,7 +377,7 @@ layer {
     convolution_param {  
         num_output: 64
         kernel_size: 3
-        pad: 1
+        pad: 0
         stride:1
         dilation: 1
         weight_filler {
@@ -408,7 +408,7 @@ layer {
     convolution_param {  
         num_output: 64
         kernel_size: 3
-        pad: 1
+        pad: 0
         stride:1
         dilation: 1
         weight_filler {
@@ -439,7 +439,7 @@ layer {
     convolution_param {  
         num_output: 64
         kernel_size: 3
-        pad: 1
+        pad: 0
         stride:1
         dilation: 1
         weight_filler {
@@ -470,7 +470,7 @@ layer {
     convolution_param {  
         num_output: 64
         kernel_size: 3
-        pad: 1
+        pad: 0
         stride:1
         dilation: 1
         weight_filler {
@@ -500,7 +500,7 @@ layer {
     convolution_param {  
         num_output: 128
         kernel_size: 3
-        pad: 1
+        pad: 0
         stride:1
         dilation: 1
         weight_filler {
@@ -590,10 +590,22 @@ layer {
     }
 }
 
+layer {
+    name: "croppped_mosaick"
+    type: "Python"
+    bottom: "mosaick"
+    bottom: "residual_unpacked"
+    top: "cropped_mosaick"
+    python_param {
+        module: "demosaicnet.layers"
+        layer: "CropLikeLayer"
+    }
+}
+
 # Skip ahead
 layer {
     name: 'packed'
-    bottom: "mosaick"
+    bottom: "cropped_mosaick"
     bottom: "residual_unpacked"
     top: 'packed'
     type: 'Concat'
@@ -612,7 +624,7 @@ layer {
     convolution_param {  
         num_output: 64
         kernel_size: 3
-        pad: 1
+        pad: 0
         stride:1
         dilation: 1
         weight_filler {

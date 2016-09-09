@@ -187,6 +187,8 @@ def main(args):
     else:
         inputs = [args.input]
 
+    avg_psnr = 0
+    n = 0
     for fname in inputs:
         print '+ Processing {}'.format(fname)
         Iref = skimage.io.imread(fname)
@@ -272,6 +274,8 @@ def main(args):
 
         if has_groundtruth:
             p = _psnr(R, Iref, crop=crop)
+            avg_psnr += p
+            n += 1
             diff = np.abs((R-Iref))
             diff /= np.amax(diff)
             out = np.hstack((Iref, I, M, R, diff))
@@ -284,9 +288,12 @@ def main(args):
             else:
                 out = skimage.img_as_ubyte(R)
 
-
         outputname = os.path.join(args.output, os.path.split(fname)[-1])
         skimage.io.imsave(outputname, out)
+
+    if has_groundtruth and n > 0:
+        avg_psnr /= n
+        print '+ Average PSNR = {:.1f} dB'.format(avg_psnr)
 
 
 if __name__ == "__main__":
