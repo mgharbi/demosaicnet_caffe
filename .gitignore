@@ -1,9 +1,7 @@
 .DS_Store
 output/**
 models/**
-data/**
 *.pyc
 .cache
 
 !.gitkeep
-!data/download_dataset.py
