@@ -84,7 +84,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--input', type=str, help='path to the input folder containing images.')
-    parser.add_argument('--output', type=str, help='target directory for the lmdb database.')
+    parser.add_argument('--input', default="data/images/train", type=str, help='path to the input folder containing images.')
+    parser.add_argument('--output', default="data/db_train", type=str, help='target directory for the lmdb database.')
     args = parser.parse_args()
     main(args)
