@@ -24,7 +24,13 @@ You can install the python packages via pip:
 Use the `bin/demosaick` script, for example:
 
 ```shell
-python bin/demosaick --input data/image1.png --output output --model models/bayer_noise --noise 0.02
+python bin/demosaick --input data/test_images/000001.png --output output --model models/bayer_noise --noise 0.02
+```
+
+For results on the Xtrans mosaick:
+
+```shell
+python bin/demosaick --input data/test_images/000001.png --output output --model models/xtrans --mosaic_type xtrans
 ```
 
 Run `python bin/demosaick -h` for details on the flags you can pass to this script, e.g.
@@ -36,11 +42,14 @@ Run `python bin/demosaick -h` for details on the flags you can pass to this scri
 When provided with an RGB input, the program will assume it is a ground-truth demosaicked image.
 It will add noise if requested, mosaick-it, run our algorithm then compute PSNR.
 
-
 ### Processing RAW files
 
 When provided with a grayscale image, the program assumes it is a GRBG Bayer mosaic.
 Use the `offset-x` and `offset-y` flag, if you need to shift the mosaick pattern.
+
+```shell
+python bin/demosaick --input data/test_raw_images/5d_mark_ii_iso800.tiff --output output --model models/bayer --offset-x 1
+```
 
 To convert a RAW file to a grayscale Bayer image suitable as input, you can use DCRaw:
 
@@ -69,7 +78,7 @@ If the ground-truth is not available, the program simply outputs a demosaicked i
 
 We provide three pre-trained Caffe models in the `pretrained_models/`
 directory. `bayer` has been trained with no noise, and `bayer_noise`) with
-noise variances in the range [0, 20] (out of 255). The noise agnostic model
+noise variances in the range \[0, 20\] (out of 255). The noise agnostic model
 will *not* attempt to perform denoising.
 
 

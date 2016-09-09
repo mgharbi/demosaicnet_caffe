@@ -292,16 +292,15 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--input', type=str, default='data/images/test/hdrvdp/000/000003.png')
-    parser.add_argument('--output', type=str, default='output')
-    parser.add_argument('--model', type=str, default='testnet')
-    parser.add_argument('--noise', type=float, default=0.0)
-    parser.add_argument('--offset_x', type=int, default=0)
-    parser.add_argument('--offset_y', type=int, default=0)
-    parser.add_argument('--tile_size', type=int, default=512)
-    parser.add_argument('--gpu', dest='gpu', action='store_true')
-    parser.add_argument('--mosaic_type', type=str, default='bayer',
-                        choices=['bayer', 'xtrans'])
+    parser.add_argument('--input', type=str, default='data/images/test/hdrvdp/000/000003.png', help='path to input image or folder.')
+    parser.add_argument('--output', type=str, default='output', help='path to output folder.')
+    parser.add_argument('--model', type=str, default='testnet', help='path to trained model (folder containing deploy.prototxt and weights.caffemodel).')
+    parser.add_argument('--noise', type=float, default=0.0, help='standard deviation of additive Gaussian noise, w.r.t to a [0,1] intensity scale.')
+    parser.add_argument('--offset_x', type=int, default=0, help='number of pixels to offset the mosaick in the x-axis.')
+    parser.add_argument('--offset_y', type=int, default=0, help='number of pixels to offset the mosaick in the y-axis.')
+    parser.add_argument('--tile_size', type=int, default=512, help='split the input into tiles of this size.')
+    parser.add_argument('--gpu', dest='gpu', action='store_true', help='use the GPU for processing.')
+    parser.add_argument('--mosaic_type', type=str, default='bayer', choices=['bayer', 'xtrans'], help='type of mosaick (xtrans or bayer)')
 
     parser.set_defaults(gpu=False)
 
