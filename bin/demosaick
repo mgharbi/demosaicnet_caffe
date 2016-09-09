@@ -4,15 +4,16 @@ import argparse
 import skimage.io
 import numpy as np
 import os
+import re
 import time
 import tempfile
 from tqdm import tqdm
 
 os.environ['GLOG_minloglevel'] = '2' 
 import caffe
+import demosaicnet.image_utils as imutils
 
 NOISE_LEVELS = [0.0000, 0.0784]  # Min/Max noise levels we trained on
-CROP = 17  # Temporary fix for the noise-aware model
 
 def _psnr(a, b, crop=0, maxval=1.0):
     """Computes PSNR on a cropped version of a,b"""
@@ -74,16 +75,9 @@ def _make_mosaic(im, mosaic_type):
     return out
 
 
-def demosaick(net, M, noise=0, psize=512):
+def demosaick(net, M, noise, psize, crop):
     start_time = time.time()
     h,w = M.shape[:2]
-
-    # Process in tiles
-    if 'output' in net.blobs.keys():
-        crop = (net.blobs['mosaick'].data.shape[-1]
-                - net.blobs['output'].data.shape[-1])/2
-    else:
-        crop = CROP
 
     psize = min(min(psize,h),w)
     psize -= psize % 2
@@ -94,10 +88,12 @@ def demosaick(net, M, noise=0, psize=512):
     # Result array
     R = np.zeros(M.shape, dtype = np.float32)
 
-    ntiles = (w/patch_step+1)*(h/patch_step+1)
+    rangex = range(0,w-2*crop,patch_step)
+    rangey = range(0,h-2*crop,patch_step)
+    ntiles = len(rangex)*len(rangey)
     with tqdm(total=ntiles, unit='tiles', unit_scale=True) as pbar:
-        for start_x in xrange(0,w-2*crop,patch_step):
-            for start_y in xrange(0,h-2*crop,patch_step):
+        for start_x in rangex:
+            for start_y in rangey:
                 end_x = start_x+psize
                 end_y = start_y+psize
                 if end_x > w:
@@ -141,69 +137,129 @@ def demosaick(net, M, noise=0, psize=512):
     return R, runtime
 
 def main(args):
-    print '+ Processing {}'.format(args.input)
-    Iref = skimage.io.imread(args.input)
-    dtype = Iref.dtype
-    if dtype not in [np.uint8, np.uint16]:
-        raise ValueError('Input type not handled: {}'.format(dtype))
-    Iref = skimage.img_as_float(Iref)
-
-    if len(Iref.shape) == 2:
-        # Offset the image to match the our mosaic pattern
-        if args.offset_x == 1:
-            print '  - offset x'
-            Iref = Iref[:, 1:]
-
-        if args.offset_y == 1:
-            print '  - offset y'
-            Iref = Iref[1:, :]
-        has_groundtruth = False
-        Iref = np.dstack((Iref, Iref, Iref))
-    else:
-        # No need for offsets if we have the ground-truth
-        has_groundtruth = True
-
-    if has_groundtruth and args.noise > 0:
-        print '  - adding noise sigma={:.3f}'.format(args.noise)
-        I = Iref + np.random.normal(
-                loc=0.0, scale = args.noise , size = Iref.shape )
-    else:
-        I = Iref
-
-    print '  - making mosaick'
-    M = _make_mosaic(I, args.mosaic_type)
-
     arch_path = os.path.join(args.model, 'deploy.prototxt')
     weights_path = os.path.join(args.model, 'weights.caffemodel')
     if args.gpu:
         print '  - using GPU'
         caffe.set_mode_gpu()
-        psize = 128
     else:
         print '  - using CPU'
         caffe.set_mode_cpu()
-        psize = 512
     net = caffe.Net(arch_path, weights_path, caffe.TEST)
 
-    R, runtime = demosaick(net, M, args.noise, psize)
+    crop = (net.blobs['mosaick'].data.shape[-1]
+            - net.blobs['output'].data.shape[-1])/2
 
-    if has_groundtruth:
-        p = _psnr(R, Iref, crop=CROP)
-        diff = np.abs((R-Iref))
-        diff /= np.amax(diff)
-        out = np.hstack((Iref, I, M, R, diff))
-        out = _float2uint(out)
-        print '  PSNR = {:.1f} dB, time = {} ms'.format(p, int(runtime))
+    print "Crop", crop
+
+    regexp = re.compile(r".*\.(png|tif)")
+    if os.path.isdir(args.input):
+        print 'dir'
+        inputs = [f for f in os.listdir(args.input) if regexp.match(f)]
+        inputs = [os.path.join(args.input, f) for f in inputs]
     else:
-        print '  - raw image without groundtruth, bypassing metric'
-        if dtype == np.uint16:
-            out = skimage.img_as_uint(R)
+        inputs = [args.input]
+
+    for fname in inputs:
+        print '+ Processing {}'.format(fname)
+        Iref = skimage.io.imread(fname)
+        dtype = Iref.dtype
+        if dtype not in [np.uint8, np.uint16]:
+            # TODO: remove this
+            Iref = np.squeeze(imutils.read_png16(fname))
+            print Iref.shape
+            dtype = Iref.dtype
+            # raise ValueError('Input type not handled: {}'.format(dtype))
+        Iref = skimage.img_as_float(Iref)
+
+        if len(Iref.shape) == 2:
+            # Offset the image to match the our mosaic pattern
+            if args.offset_x > 0:
+                print '  - offset x'
+                # Iref = Iref[:, 1:]
+                Iref = np.pad(Iref, [(0, 0), (args.offset_x, 0)], 'reflect')
+
+            if args.offset_y > 0:
+                print '  - offset y'
+                # Iref = Iref[1:, :]
+                Iref = np.pad(Iref, [(args.offset_y, 0), (0,0)], 'reflect')
+            has_groundtruth = False
+            Iref = np.dstack((Iref, Iref, Iref))
         else:
-            out = skimage.img_as_ubyte(R)
+            # No need for offsets if we have the ground-truth
+            has_groundtruth = True
+
+        if has_groundtruth and args.noise > 0:
+            print '  - adding noise sigma={:.3f}'.format(args.noise)
+            I = Iref + np.random.normal(
+                    loc=0.0, scale = args.noise , size = Iref.shape )
+        else:
+            I = Iref
+
+        if crop > 0:
+            if args.mosaic_type == 'bayer':
+                c = crop + (crop %2)  # Make sure we don't change the pattern's period
+                I = np.pad(I, [(c, c), (c, c), (0, 0)], 'reflect')
+            else:
+                raise NotImplemented('crop and boundary conditions not implemented.')
+
+        if has_groundtruth:
+            print '  - making mosaick'
+        else:
+            print '  - formatting mosaick'
+        M = _make_mosaic(I, args.mosaic_type)
+
+        R, runtime = demosaick(net, M, args.noise, args.tile_size, crop)
+
+        if crop > 0:
+            if args.mosaic_type == 'bayer':
+                R = R[c:-c, c:-c, :]
+                I = I[c:-c, c:-c, :]
+                M = M[c:-c, c:-c, :]
+            else:
+                raise NotImplemented('crop and boundary conditions not implemented.')
+
+        if not has_groundtruth:
+            if args.offset_x > 0:
+                print '  - remove offset x'
+                R = R[:, args.offset_x:]
+                I = I[:, args.offset_x:]
+                M = M[:, args.offset_x:]
+
+            if args.offset_y > 0:
+                print '  - remove offset y'
+                R = R[args.offset_y:, :]
+                I = I[args.offset_y:, :]
+                M = M[args.offset_y:, :]
+
+        if len(Iref.shape) == 2:
+            # Offset the image to match the our mosaic pattern
+            if args.offset_x == 1:
+                print '  - offset x'
+                Iref = Iref[:, 1:]
+
+            if args.offset_y == 1:
+                print '  - offset y'
+                Iref = Iref[1:, :]
+            has_groundtruth = False
+
+        if has_groundtruth:
+            p = _psnr(R, Iref, crop=crop)
+            diff = np.abs((R-Iref))
+            diff /= np.amax(diff)
+            out = np.hstack((Iref, I, M, R, diff))
+            out = _float2uint(out)
+            print '  PSNR = {:.1f} dB, time = {} ms'.format(p, int(runtime))
+        else:
+            print '  - raw image without groundtruth, bypassing metric'
+            if dtype == np.uint16:
+                out = skimage.img_as_uint(R)
+            else:
+                out = skimage.img_as_ubyte(R)
 
 
-    outputname = os.path.join(args.output, os.path.split(args.input)[-1])
-    skimage.io.imsave(outputname, out)
+        outputname = os.path.join(args.output, os.path.split(fname)[-1])
+        skimage.io.imsave(outputname, out)
 
 
 if __name__ == "__main__":
@@ -213,8 +269,9 @@ if __name__ == "__main__":
     parser.add_argument('--output', type=str, default='output')
     parser.add_argument('--model', type=str, default='testnet')
     parser.add_argument('--noise', type=float, default=0.0)
-    parser.add_argument('--offset-x', type=int, default=0)
-    parser.add_argument('--offset-y', type=int, default=0)
+    parser.add_argument('--offset_x', type=int, default=0)
+    parser.add_argument('--offset_y', type=int, default=0)
+    parser.add_argument('--tile_size', type=int, default=512)
     parser.add_argument('--gpu', dest='gpu', action='store_true')
     parser.add_argument('--mosaic_type', type=str, default='bayer',
                         choices=['bayer', 'xtrans'])

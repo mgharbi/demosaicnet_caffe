@@ -135,6 +135,20 @@ class TestPackBayerMosaicLayer(TestPythonLayer):
         assert (out[:, 2, 0, 0] == 3).all()
         assert (out[:, 3, 0, 0] == 4).all()
 
+    def test_backward(self):
+        self.net.blobs['output'].diff[:, 0, 0, 0] = 1
+        self.net.blobs['output'].diff[:, 1, 0, 0] = 2
+        self.net.blobs['output'].diff[:, 2, 0, 0] = 3
+        self.net.blobs['output'].diff[:, 3, 0, 0] = 4
+        self.net.backward()
+
+        diff = self.net.blobs['data'].diff
+
+        assert (diff[:, 1, 0, 0] == 1).all()
+        assert (diff[:, 0, 0, 1] == 2).all()
+        assert (diff[:, 2, 1, 0] == 3).all()
+        assert (diff[:, 1, 1, 1] == 4).all()
+
 
 class TestUnpackBayerMosaicLayer(TestPythonLayer):
     def setUp(self):
@@ -166,6 +180,19 @@ class TestUnpackBayerMosaicLayer(TestPythonLayer):
         assert (out[:, 2, ::2, 1::2] == 10).all()
         assert (out[:, 2, 1::2, ::2] == 11).all()
         assert (out[:, 2, 1::2, 1::2] == 12).all()
+
+    def test_backward(self):
+        for c in range(3):
+            self.net.blobs['output'].diff[:, c, 0, 0] = 4*c
+            self.net.blobs['output'].diff[:, c, 0, 1] = 4*c+1
+            self.net.blobs['output'].diff[:, c, 1, 0] = 4*c+2
+            self.net.blobs['output'].diff[:, c, 1, 1] = 4*c+3
+        self.net.backward()
+
+        diff = self.net.blobs['data'].diff
+
+        for i in range(12):
+            assert (diff[:, i, 0, 0] == i).all()
 
 
 class TestRandomFlipLayer(TestPythonLayer):
@@ -259,6 +286,18 @@ class TestCropLikeLayer(TestPythonLayer):
             for j in range(64):
                 assert (out[:, :, i, j] == i*j).all()
 
+    def test_backward(self):
+        for i in range(64):
+            for j in range(64):
+                self.net.blobs['output'].diff[:, :, i, j] = i*j
+        self.net.backward()
+
+        diff = self.net.blobs['data'].diff
+
+        for i in range(64):
+            for j in range(64):
+                assert (diff[:, :, 32+i, 32+j] == i*j).all()
+
 
 class TestAddGaussianNoiseLayer(TestPythonLayer):
     def python_net_file(self, bsize, c, h, w, layer):
@@ -320,3 +359,41 @@ class TestReplicateLikeLayer(TestPythonLayer):
         assert list(out.shape) == sz
         for i in range(16):
             assert (out[i, 0, :, :] == self.net.blobs['data'].data[i]).all()
+
+class TestNormalizedEuclideaanLayer(TestPythonLayer):
+    def python_net_file(self):
+        with tempfile.NamedTemporaryFile(mode='w+', delete=False) as f:
+            f.write("""name: 'pythonnet' force_backward: true
+            input: 'data' input_shape { dim:16 dim: 3 dim: 64 dim: 64 }
+            input: 'target' input_shape { dim:16 dim: 3 dim: 64 dim: 64 }
+            layer { type: 'Python' name: 'output' bottom: 'data' bottom: 'target'
+              top: 'output'
+              python_param { module: 'demosaicnet.layers' layer: 'NormalizedEuclideanLayer'}}""")
+            return f.name
+
+    def setUp(self):
+        net_file = self.python_net_file()
+        self.net = caffe.Net(net_file, caffe.TRAIN)
+        os.remove(net_file)
+
+    def test_forward_backward(self):
+        a = np.random.rand(16, 3, 64, 64)
+        b = np.random.rand(16, 3, 64, 64)
+        self.net.blobs['data'].data[...] = a
+        self.net.blobs['target'].data[...] = b
+
+        self.net.forward()
+        self.net.backward()
+
+        out = self.net.blobs['output'].data
+        outdiff = self.net.blobs['data'].diff
+        outdiff2 = self.net.blobs['target'].diff
+
+        diff = a-b
+        count = 16*3*64*64
+
+        assert len(out) == 1
+        assert (out[0] - np.sum(np.square(diff))/count) < 1e-6
+        assert (out[0] - np.sum(np.square(diff))/count) < 1e-6
+        assert np.amax(outdiff - diff/count) < 1e-6
+        assert np.amax(outdiff2 - (-diff/count)) < 1e-6

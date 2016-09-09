@@ -35,7 +35,8 @@ class BayerMosaickLayer(caffe.Layer):
         top[0].data[:, 1, 1::2, 1::2] = bottom[0].data[:, 1, 1::2, 1::2]  # G
 
     def backward(self, top, propagate_down, bottom):
-        pass
+        raise Exception('gradient is invalid')
+
 
 class XTransMosaickLayer(caffe.Layer):
     def setup(self, bottom, top):
@@ -131,7 +132,7 @@ class XTransMosaickLayer(caffe.Layer):
         top[0].data[...] = bottom[0].data[...]*mask
 
     def backward(self, top, propagate_down, bottom):
-        pass
+        raise Exception('gradient is invalid')
 
 
 class PackBayerMosaickLayer(caffe.Layer):
@@ -166,7 +167,11 @@ class PackBayerMosaickLayer(caffe.Layer):
         top[0].data[:, 3, :, :] = bottom[0].data[:, 1, 1::2, 1::2]  # G
 
     def backward(self, top, propagate_down, bottom):
-        pass
+        if propagate_down[0]:
+            bottom[0].diff[:, 1, ::2, ::2]   = top[0].diff[:, 0, :, :] # G
+            bottom[0].diff[:, 0, ::2, 1::2]  = top[0].diff[:, 1, :, :]  # R
+            bottom[0].diff[:, 2, 1::2, ::2]  = top[0].diff[:, 2, :, :]  # B
+            bottom[0].diff[:, 1, 1::2, 1::2] = top[0].diff[:, 3, :, :]   # G
 
 
 class UnpackBayerMosaickLayer(caffe.Layer):
@@ -199,7 +204,12 @@ class UnpackBayerMosaickLayer(caffe.Layer):
             top[0].data[:, c, 1::2, 1::2] = bottom[0].data[:, 4*c+3, :, :]
 
     def backward(self, top, propagate_down, bottom):
-        pass
+        if propagate_down[0]:
+            for c in range(3):
+                bottom[0].diff[:, 4*c, :, :]   = top[0].diff[:, c, ::2, ::2]
+                bottom[0].diff[:, 4*c+1, :, :] = top[0].diff[:, c, ::2, 1::2] 
+                bottom[0].diff[:, 4*c+2, :, :] = top[0].diff[:, c, 1::2, ::2] 
+                bottom[0].diff[:, 4*c+3, :, :] = top[0].diff[:, c, 1::2, 1::2]
 
 
 class AddGaussianNoiseLayer(caffe.Layer):
@@ -246,7 +256,7 @@ class AddGaussianNoiseLayer(caffe.Layer):
             top[0].data[n, :, :, :] = bottom[0].data[n, :, :, :]+noise
 
     def backward(self, top, propagate_down, bottom):
-        pass
+        raise Exception('gradient is invalid')
 
 
 class CropLikeLayer(caffe.Layer):
@@ -265,21 +275,30 @@ class CropLikeLayer(caffe.Layer):
 
     def reshape(self, bottom, top):
         top[0].reshape(*bottom[1].data.shape)
+        src_sz = bottom[0].data.shape
+        dst_sz = bottom[1].data.shape
+        self.offset = [(s-d)/2 for d,s in zip(dst_sz, src_sz)]
 
     def forward(self, bottom, top):
         src_sz = bottom[0].data.shape
         dst_sz = bottom[1].data.shape
 
-        offset = [(s-d)/2 for d,s in zip(dst_sz, src_sz)]
-
         for n in range(src_sz[0]):
             for c in range(src_sz[1]):
                 top[0].data[n, c, :, :] = bottom[0].data[n, c,
-                    offset[2]:offset[2]+dst_sz[2],
-                    offset[3]:offset[3]+dst_sz[3]]
+                    self.offset[2]:self.offset[2]+dst_sz[2],
+                    self.offset[3]:self.offset[3]+dst_sz[3]]
 
     def backward(self, top, propagate_down, bottom):
-        pass
+        src_sz = bottom[0].data.shape
+        dst_sz = bottom[1].data.shape
+        bottom[0].diff[...] = 0
+        for n in range(src_sz[0]):
+            for c in range(src_sz[1]):
+                bottom[0].diff[n, c, 
+                    self.offset[2]:self.offset[2]+dst_sz[2],
+                    self.offset[3]:self.offset[3]+dst_sz[3]] = top[0].diff[n, c, :, :]
+
 
 
 class RandomFlipLayer(caffe.Layer):
@@ -307,7 +326,7 @@ class RandomFlipLayer(caffe.Layer):
                 top[0].data[n, :, :, :] = bottom[0].data[n, :, :, :]
 
     def backward(self, top, propagate_down, bottom):
-        pass
+        raise Exception('gradient is invalid')
 
 
 class RandomRotLayer(caffe.Layer):
@@ -335,7 +354,7 @@ class RandomRotLayer(caffe.Layer):
                     top[0].data[n, c, :, :] = np.rot90(bottom[0].data[n, c, :, :], rot[n])
 
     def backward(self, top, propagate_down, bottom):
-        pass
+        raise Exception('gradient is invalid')
 
 
 class RandomOffsetLayer(caffe.Layer):
@@ -394,7 +413,8 @@ class RandomOffsetLayer(caffe.Layer):
                     top[0].data[n, :, :, :] = bottom[0].data[n, :, :, :]
 
     def backward(self, top, propagate_down, bottom):
-        pass
+        raise Exception('gradient is invalid')
+
 
 class ReplicateLikeLayer(caffe.Layer):
     def setup(self, bottom, top):
@@ -421,10 +441,32 @@ class ReplicateLikeLayer(caffe.Layer):
             top[0].data[n, :, :, :] = bottom[0].data[n]
 
     def backward(self, top, propagate_down, bottom):
-        pass
+        raise Exception('gradient is invalid')
 
-class SRGB2LinearLayer(caffe.Layer):
-    pass
 
-class Linear2SRGBLayer(caffe.Layer):
-    pass
+class NormalizedEuclideanLayer(caffe.Layer):
+    def setup(self, bottom, top):
+        if len(bottom) != 2:
+            raise Exception("Needs two input.")
+
+        if len(top) != 1:
+            raise Exception("Needs one output.")
+
+        if len(bottom[0].data.shape) != 4:
+            raise Exception("Needs 4D input.")
+
+        if bottom[0].data.shape != bottom[1].data.shape:
+            raise Exception("Inputs shapes should match")
+
+    def reshape(self, bottom, top):
+        top[0].reshape(1)
+
+    def forward(self, bottom, top):
+        self.diff = bottom[0].data-bottom[1].data
+        top[0].data[...] = np.sum(np.square(self.diff))/bottom[0].count
+
+    def backward(self, top, propagate_down, bottom):
+        if propagate_down[0]:
+            bottom[0].diff[...] = self.diff/bottom[0].count
+        if propagate_down[1]:
+            bottom[1].diff[...] = -self.diff/bottom[0].count

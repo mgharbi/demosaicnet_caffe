@@ -3,3 +3,4 @@ output/**
 models/**
 data/**
 *.pyc
+.cache

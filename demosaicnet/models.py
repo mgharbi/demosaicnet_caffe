@@ -61,12 +61,12 @@ def demosaic(depth, width, ksize, batch_size,
                               python_param={'module':'demosaicnet.layers',
                                             'layer': 'RandomOffsetLayer',
                                             'param_str': '{"offset_x": 1, "offset_y":1}'})
-        net.flip = L.Python(bottom='offset',
+        net.rot = L.Python(bottom='offset',
                             python_param={'module':'demosaicnet.layers',
-                                          'layer': 'RandomFlipLayer'})
-        net.groundtruth = L.Python(bottom='flip',
+                                          'layer': 'RandomRotLayer'})
+        net.groundtruth = L.Python(bottom='rot',
                               python_param={'module':'demosaicnet.layers',
-                                            'layer': 'RandomRotLayer'})
+                                            'layer': 'RandomFlipLayer'})
 
         # Add noise
         if add_noise:
@@ -171,9 +171,10 @@ def demosaic(depth, width, ksize, batch_size,
         else:
             gt_layer = 'groundtruth'
 
-        # TODO: normalized Euclidean loss
-        net['loss'] = L.EuclideanLoss(bottom=['output', gt_layer],
-                                      loss_weight=1.0/(128*128*3))
+        net['loss'] = L.Python(bottom=['output', gt_layer],
+                                      loss_weight=1.0,
+                                      python_param={'module':'demosaicnet.layers',
+                                                    'layer':'NormalizedEuclideanLayer'})
 
     return net
 #pylint: enable=too-many-arguments

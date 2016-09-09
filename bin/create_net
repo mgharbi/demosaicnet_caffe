@@ -10,6 +10,10 @@ def main(args):
     snapshot_dir = os.path.join(args.output, 'snapshots')
     if not os.path.exists(snapshot_dir):
         os.makedirs(snapshot_dir)
+    log_dir = os.path.join(args.output, 'log')
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
+
     train_net = models.demosaic(
             args.depth, args.width, args.kernel_size, args.batch_size,
             trainset=args.train_db,
@@ -35,7 +39,7 @@ def main(args):
     with open(os.path.join(args.output, 'solver.prototxt'), 'w') as W:
       W.write("""# The train net protocol buffer definition
 net: "{output}/train.prototxt"
-# test_net: "train.prototxt"
+test_net: "{output}/test.prototxt"
 
 # Solver parameters
 solver_type: ADAM
@@ -54,14 +58,14 @@ iter_size: 1
 
 # Display every x iterations
 display: 100
-average_loss: 1000
+average_loss: 10000
 
 # The maximum number of iterations
 max_iter: 10000000
 
 # Test
-# test_iter: 1
-# test_interval: 500
+test_iter: 16
+test_interval: 1000
 
 # Snapshot intermediate results
 snapshot: 1000

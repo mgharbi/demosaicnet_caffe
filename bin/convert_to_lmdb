@@ -18,12 +18,18 @@ def main(args):
     regexp = re.compile(r'.*\.png')
     env = lmdb.open(args.output, map_size = DB_MAP_SIZE)
     n = 1
+    invalid = []
     for d, dirs, files in os.walk(args.input):
         txn = env.begin(write=True)
         for f in files:
             if regexp.match(f):
                 print 'image', n, f
-                im = Image.open(os.path.join(d, f))
+                try:
+                    im = Image.open(os.path.join(d, f))
+                except IOError:
+                    print '  could not read f'
+                    invalid.append(os.path.join(d, f))
+                    continue
                 w, h = im.size
                 if w != PATCH_SIZE or h != PATCH_SIZE:
                     raise ValueError("Patch size should be {}, got {}x{}".format(
@@ -46,6 +52,8 @@ def main(args):
                 n += 1
         txn.commit()
     env.close()
+    print invalid
+    print len(invalid), 'invalid'
     
 
 if __name__ == "__main__":
