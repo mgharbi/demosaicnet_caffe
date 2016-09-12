@@ -38,7 +38,6 @@ from tqdm import tqdm
 
 os.environ['GLOG_minloglevel'] = '2' 
 import caffe
-import demosaicnet.image_utils as imutils
 
 NOISE_LEVELS = [0.0000, 0.0784]  # Min/Max noise levels we trained on
 
@@ -194,11 +193,7 @@ def main(args):
         Iref = skimage.io.imread(fname)
         dtype = Iref.dtype
         if dtype not in [np.uint8, np.uint16]:
-            # TODO: remove this
-            Iref = np.squeeze(imutils.read_png16(fname))
-            print Iref.shape
-            dtype = Iref.dtype
-            # raise ValueError('Input type not handled: {}'.format(dtype))
+            raise ValueError('Input type not handled: {}'.format(dtype))
         Iref = skimage.img_as_float(Iref)
 
         if len(Iref.shape) == 2:
