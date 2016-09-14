@@ -49,7 +49,7 @@ layer {
     convolution_param {  
         num_output: 64
         kernel_size: 3
-        pad: 1
+        pad: 0
         stride:1
         dilation: 1
         weight_filler {
@@ -80,7 +80,7 @@ layer {
     convolution_param {  
         num_output: 64
         kernel_size: 3
-        pad: 1
+        pad: 0
         stride:1
         dilation: 1
         weight_filler {
@@ -112,7 +112,7 @@ layer {
     convolution_param {  
         num_output: 64
         kernel_size: 3
-        pad: 1
+        pad: 0
         stride:1
         dilation: 1
         weight_filler {
@@ -143,7 +143,7 @@ layer {
     convolution_param {  
         num_output: 64
         kernel_size: 3
-        pad: 1
+        pad: 0
         stride:1
         dilation: 1
         weight_filler {
@@ -174,7 +174,7 @@ layer {
     convolution_param {  
         num_output: 64
         kernel_size: 3
-        pad: 1
+        pad: 0
         stride:1
         dilation: 1
         weight_filler {
@@ -205,7 +205,7 @@ layer {
     convolution_param {  
         num_output: 64
         kernel_size: 3
-        pad: 1
+        pad: 0
         stride:1
         dilation: 1
         weight_filler {
@@ -236,7 +236,7 @@ layer {
     convolution_param {  
         num_output: 64
         kernel_size: 3
-        pad: 1
+        pad: 0
         stride:1
         dilation: 1
         weight_filler {
@@ -267,7 +267,7 @@ layer {
     convolution_param {  
         num_output: 64
         kernel_size: 3
-        pad: 1
+        pad: 0
         stride:1
         dilation: 1
         weight_filler {
@@ -298,7 +298,7 @@ layer {
     convolution_param {  
         num_output: 64
         kernel_size: 3
-        pad: 1
+        pad: 0
         stride:1
         dilation: 1
         weight_filler {
@@ -329,7 +329,7 @@ layer {
     convolution_param {  
         num_output: 64
         kernel_size: 3
-        pad: 1
+        pad: 0
         stride:1
         dilation: 1
         weight_filler {
@@ -360,7 +360,7 @@ layer {
     convolution_param {  
         num_output: 64
         kernel_size: 3
-        pad: 1
+        pad: 0
         stride:1
         dilation: 1
         weight_filler {
@@ -403,7 +403,7 @@ layer {
     convolution_param {  
         num_output: 64
         kernel_size: 3
-        pad: 1
+        pad: 0
         stride:1
         dilation: 1
         weight_filler {
