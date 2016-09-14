@@ -301,7 +301,9 @@ class CropLikeLayer(caffe.Layer):
             raise Exception("Needs 4D input.")
 
     def reshape(self, bottom, top):
-        top[0].reshape(*bottom[1].data.shape)
+        n, _, h, w = bottom[1].data.shape
+        c = bottom[0].data.shape[1]
+        top[0].reshape(n, c, h, w)
         src_sz = bottom[0].data.shape
         dst_sz = bottom[1].data.shape
         self.offset = [(s-d)/2 for d,s in zip(dst_sz, src_sz)]

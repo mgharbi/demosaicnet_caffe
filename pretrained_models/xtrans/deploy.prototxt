@@ -381,10 +381,22 @@ layer {
     type: 'ReLU'
 }
 
+layer {
+    name: "croppped_mosaick"
+    type: "Python"
+    bottom: "mosaick"
+    bottom: "conv11"
+    top: "cropped_mosaick"
+    python_param {
+        module: "demosaicnet.layers"
+        layer: "CropLikeLayer"
+    }
+}
+
 # Skip ahead
 layer {
     name: 'packed'
-    bottom: "mosaick"
+    bottom: "cropped_mosaick"
     bottom: "conv11"
     top: 'packed'
     type: 'Concat'

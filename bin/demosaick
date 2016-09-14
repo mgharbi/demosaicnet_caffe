@@ -225,7 +225,8 @@ def main(args):
                 c = crop + (crop %2)  # Make sure we don't change the pattern's period
                 I = np.pad(I, [(c, c), (c, c), (0, 0)], 'reflect')
             else:
-                raise NotImplemented('crop and boundary conditions not implemented.')
+                c = crop + (crop % 6)  # Make sure we don't change the pattern's period
+                I = np.pad(I, [(c, c), (c, c), (0, 0)], 'reflect')
 
         if has_groundtruth:
             print '  - making mosaick'
@@ -236,12 +237,9 @@ def main(args):
         R, runtime = demosaick(net, M, args.noise, args.tile_size, crop)
 
         if crop > 0:
-            if args.mosaic_type == 'bayer':
-                R = R[c:-c, c:-c, :]
-                I = I[c:-c, c:-c, :]
-                M = M[c:-c, c:-c, :]
-            else:
-                raise NotImplemented('crop and boundary conditions not implemented.')
+            R = R[c:-c, c:-c, :]
+            I = I[c:-c, c:-c, :]
+            M = M[c:-c, c:-c, :]
 
         if not has_groundtruth:
             if args.offset_x > 0:
