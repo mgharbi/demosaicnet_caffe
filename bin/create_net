@@ -44,18 +44,24 @@ def main(args):
     train_net = models.demosaic(
             args.depth, args.width, args.kernel_size, args.batch_size,
             trainset=args.train_db,
+            train_mode=True,
             mosaic_type=args.mosaic_type,
-            min_noise=0, max_noise=args.max_noise, pad=args.pad)
+            min_noise=0, max_noise=args.max_noise, pad=args.pad,
+            batch_norm=args.batch_norm)
     test_net = models.demosaic(
             args.depth, args.width, args.kernel_size, args.batch_size,
             trainset=args.test_db,
+            train_mode=False,
             mosaic_type=args.mosaic_type,
-            min_noise=0, max_noise=args.max_noise, pad=args.pad)
+            min_noise=0, max_noise=args.max_noise, pad=args.pad,
+            batch_norm=args.batch_norm)
     deploy_net = models.demosaic(
             args.depth, args.width, args.kernel_size, args.batch_size,
             trainset=None,
+            train_mode=False,
             mosaic_type=args.mosaic_type,
-            min_noise=0, max_noise=args.max_noise, pad=args.pad)
+            min_noise=0, max_noise=args.max_noise, pad=args.pad,
+            batch_norm=args.batch_norm)
     with open(os.path.join(args.output, 'train.prototxt'), 'w') as W:
       W.write('%s\n' % train_net.to_proto())
     with open(os.path.join(args.output, 'test.prototxt'), 'w') as W:
@@ -69,19 +75,19 @@ net: "{output}/train.prototxt"
 test_net: "{output}/test.prototxt"
 
 # Solver parameters
-solver_type: ADAM
+type: "Adam"
 delta: 1e-8
 momentum: 0.9
 momentum2: 0.999
 lr_policy: "fixed"
-base_lr: 0.0001
+base_lr: {learning_rate}
 
 # Regularization
 regularization_type:"L2"
 weight_decay: 1e-08
 
 # Accumulate gradients over batch_size*iter_size
-iter_size: 1
+iter_size: {iter_size}
 
 # Display every x iterations
 display: 100
@@ -97,7 +103,10 @@ test_interval: 1000
 # Snapshot intermediate results
 snapshot: 1000
 snapshot_prefix: "{snapshot}/"
-solver_mode: GPU""".format(output=args.output, snapshot=snapshot_dir))
+solver_mode: GPU""".format(output=args.output,
+                           snapshot=snapshot_dir,
+                           learning_rate=args.learning_rate,
+                           iter_size=args.iter_size))
 
 
 if __name__ == "__main__":
@@ -106,6 +115,8 @@ if __name__ == "__main__":
     parser.add_argument('--test_db', type=str, default='data/db_val', help='path to the lmdb database with validation images.')
     parser.add_argument('--output', type=str, default='new_model', help='directory for the model output.')
     parser.add_argument('--batch_size', type=int, default=64, help='samples per batch.')
+    parser.add_argument('--iter_size', type=int, default=1, help='number of forward/backward propagations for one update (use to extend the batch_size).')
+    parser.add_argument('--learning_rate', type=float, default=1e-4, help='step stize for the optimizer.')
     parser.add_argument('--depth', type=int, default=15, help='number of convolutional layers.')
     parser.add_argument('--width', type=int, default=64, help='number of feature maps per layer.')
     parser.add_argument('--kernel_size', type=int, default=3, help='size of the kernel for each convolution.')
@@ -114,6 +125,8 @@ if __name__ == "__main__":
     parser.add_argument('--no-pad', dest='pad', action='store_false', help='do not pad feature maps before convolution.')
     parser.set_defaults(pad=False)
     parser.add_argument('--mosaic_type', type=str, default='bayer', choices=['bayer', 'xtrans'], help='type of mosaick (xtrans or bayer)')
+    parser.add_argument('--batch_norm', action='store_true', help='adds a batch normalization layer.')
+    parser.set_defaults(batch_norm=False)
 
     args = parser.parse_args()
 
