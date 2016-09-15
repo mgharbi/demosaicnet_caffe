@@ -91,8 +91,7 @@ def demosaic(depth, width, ksize, batch_size,
         net.offset = L.Python(bottom='demosaicked',
                               python_param={'module':'demosaicnet.layers',
                                             'layer': 'RandomOffsetLayer',
-                                            'param_str': '{"offset_x": {}, "offset_y":{}}'.format(
-                                                offset_x, offset_y)})
+                                            'param_str': '{"offset_x": %s, "offset_y":%s}' % (offset_x, offset_y)})
         net.rot = L.Python(bottom='offset',
                             python_param={'module':'demosaicnet.layers',
                                           'layer': 'RandomRotLayer'})
