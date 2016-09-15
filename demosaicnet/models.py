@@ -63,7 +63,13 @@ def demosaic(depth, width, ksize, batch_size,
     """Network to denoise/demosaic Bayer arrays."""
 
     if mosaic_type not in ['bayer', 'xtrans']:
-        raise Exception('Unknown mosaic type "{}".'.format(mosaic_type))
+        raise ValueError('Unknown mosaic type "{}".'.format(mosaic_type))
+
+    offset_x = 1
+    offset_y = 1
+    if mosaic_type == 'xtrans':
+        offset_x = 5
+        offset_y = 5
 
     net = caffe.NetSpec()
 
@@ -85,7 +91,8 @@ def demosaic(depth, width, ksize, batch_size,
         net.offset = L.Python(bottom='demosaicked',
                               python_param={'module':'demosaicnet.layers',
                                             'layer': 'RandomOffsetLayer',
-                                            'param_str': '{"offset_x": 1, "offset_y":1}'})
+                                            'param_str': '{"offset_x": {}, "offset_y":{}}'.format(
+                                                offset_x, offset_y)})
         net.rot = L.Python(bottom='offset',
                             python_param={'module':'demosaicnet.layers',
                                           'layer': 'RandomRotLayer'})
