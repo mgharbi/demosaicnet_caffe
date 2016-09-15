@@ -31,30 +31,44 @@ import caffe
 __all__ = ['demosaic']
 
 
-def _convolution(bottom, width, ksize, pad=True):
+def _convolution(bottom, width, ksize, pad=True, bias=True):
     """Parametrized convolution layer."""
     if pad:
         padding = (ksize-1)/2
     else:
         padding = 0
 
-    return L.Convolution(
-        bottom=bottom,
-        param=[{'lr_mult': 1, 'decay_mult': 1},
-               {'lr_mult': 2, 'decay_mult': 0}],
-        convolution_param={
-            'num_output': width,
-            'kernel_size': ksize,
-            'pad': padding,
-            'weight_filler': {
-                'type': 'msra',
-                'variance_norm': P.Filler.AVERAGE,
-            },
-            'bias_filler': {
-                'type': 'constant',
-                'value': 0,
-            }
-        })
+    if bias:
+        return L.Convolution(
+            bottom=bottom,
+            param=[{'lr_mult': 1, 'decay_mult': 1},
+                   {'lr_mult': 2, 'decay_mult': 0}],
+            convolution_param={
+                'num_output': width,
+                'kernel_size': ksize,
+                'pad': padding,
+                'weight_filler': {
+                    'type': 'msra',
+                    'variance_norm': P.Filler.AVERAGE,
+                },
+                'bias_filler': {
+                    'type': 'constant',
+                    'value': 0,
+                }
+            })
+    else:
+        return L.Convolution(
+            bottom=bottom,
+            param=[{'lr_mult': 1, 'decay_mult': 1}],
+            convolution_param={
+                'num_output': width,
+                'kernel_size': ksize,
+                'pad': padding,
+                'weight_filler': {
+                    'type': 'msra',
+                    'variance_norm': P.Filler.AVERAGE,
+                },
+            })
 
 #pylint: disable=too-many-arguments
 def demosaic(depth, width, ksize, batch_size,
@@ -158,7 +172,7 @@ def demosaic(depth, width, ksize, batch_size,
                 bottom = pre_noise_layer
         else:
             if batch_norm:
-                bottom = 'norm{}'.format(layer_id)
+                bottom = 'conv{}'.format(layer_id)
             else:
                 bottom = 'conv{}'.format(layer_id)
 
@@ -168,31 +182,27 @@ def demosaic(depth, width, ksize, batch_size,
             nfilters = width
 
         if batch_norm:
-            net[name] = _convolution(bottom, nfilters, ksize, pad=pad)
             bn = 'norm{}'.format(layer_id+1)
-            net[bn] = L.BatchNorm(net[name],
-                    batch_norm_param=dict(use_global_stats=not train_mode))
-            net['relu{}'.format(layer_id+1)] = L.ReLU(net[bn], in_place=True)
+            relu = 'relu{}'.format(layer_id+1)
+            net[name] = _convolution(bottom, nfilters, ksize, pad=pad)
+            net[relu] = L.ReLU(net[name], in_place=True)
+            net[bn] = L.BatchNorm(net[relu],
+                    batch_norm_param=dict(use_global_stats=not train_mode),
+                    param=[dict(lr_mult=0, decay_mult=0)]*3, in_place=True)
         else:
             net[name] = _convolution(bottom, nfilters, ksize, pad=pad)
             net['relu{}'.format(layer_id+1)] = L.ReLU(net[name], in_place=True)
 
     # -------------------------------------------------------------------------
     if mosaic_type == 'bayer':
-        if batch_norm:
-            bottom = 'norm{}'.format(depth)
-        else:
-            bottom = 'conv{}'.format(depth)
+        bottom = 'conv{}'.format(depth)
         # Unpack result
         net.unpack = L.Python(bottom=bottom,
                               python_param={'module':'demosaicnet.layers',
                                             'layer': 'UnpackBayerMosaickLayer'})
         unpack_layer = 'unpack'
     else:
-        if batch_norm:
-            unpack_layer = 'norm{}'.format(depth)
-        else:
-            unpack_layer = 'conv{}'.format(depth)
+        unpack_layer = 'conv{}'.format(depth)
     # -------------------------------------------------------------------------
 
     # Fast-forward input mosaick
