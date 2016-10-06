@@ -1,6 +1,6 @@
 # Deep Joint Demosaicking and Denoising
 
-SiGGRAPH Asia 2016 - Conditionally Accepted
+SiGGRAPH Asia 2016
 
 Michaël Gharbi <gharbi@mit.edu>
 Gaurav Chaurasia
