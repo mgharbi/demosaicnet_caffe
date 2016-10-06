@@ -176,7 +176,7 @@ def demosaic(depth, width, ksize, batch_size,
             else:
                 bottom = 'conv{}'.format(layer_id)
 
-        if layer_id == depth-1:
+        if mosaic_type=='bayer' and layer_id == depth-1:
             nfilters = 12
         else:
             nfilters = width

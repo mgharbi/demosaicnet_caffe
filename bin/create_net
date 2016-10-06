@@ -98,10 +98,10 @@ max_iter: 10000000
 
 # Test
 test_iter: 16
-test_interval: 1000
+test_interval: 10000
 
 # Snapshot intermediate results
-snapshot: 1000
+snapshot: 10000
 snapshot_prefix: "{snapshot}/"
 solver_mode: GPU""".format(output=args.output,
                            snapshot=snapshot_dir,
