@@ -72,11 +72,17 @@ def _convolution(bottom, width, ksize, pad=True, bias=True):
 
 #pylint: disable=too-many-arguments
 def demosaic(depth, width, ksize, batch_size,
+             non_linearity='relu',
              mosaic_type='bayer', trainset=None,
              train_mode=True,
              min_noise=0, max_noise=0, pad=True,
              batch_norm=False):
     """Network to denoise/demosaic Bayer arrays."""
+
+    if non_linearity == 'relu':
+      NL = L.ReLU
+    else:
+      NL = L.TanH
 
     if mosaic_type not in ['bayer', 'xtrans']:
         raise ValueError('Unknown mosaic type "{}".'.format(mosaic_type))
@@ -185,13 +191,13 @@ def demosaic(depth, width, ksize, batch_size,
             bn = 'norm{}'.format(layer_id+1)
             relu = 'relu{}'.format(layer_id+1)
             net[name] = _convolution(bottom, nfilters, ksize, pad=pad)
-            net[relu] = L.ReLU(net[name], in_place=True)
+            net[relu] = NL(net[name], in_place=True)
             net[bn] = L.BatchNorm(net[relu],
                     batch_norm_param=dict(use_global_stats=not train_mode),
                     param=[dict(lr_mult=0, decay_mult=0)]*3, in_place=True)
         else:
             net[name] = _convolution(bottom, nfilters, ksize, pad=pad)
-            net['relu{}'.format(layer_id+1)] = L.ReLU(net[name], in_place=True)
+            net['relu{}'.format(layer_id+1)] = NL(net[name], in_place=True)
 
     # -------------------------------------------------------------------------
     if mosaic_type == 'bayer':
@@ -217,7 +223,7 @@ def demosaic(depth, width, ksize, batch_size,
 
     # Full-res convolution
     net['fullres_conv'] = _convolution('residual_and_mosaick', width, ksize, pad=pad)
-    net['fullres_relu'] = L.ReLU(net['fullres_conv'], in_place=True)
+    net['fullres_relu'] = NL(net['fullres_conv'], in_place=True)
     net['output'] = _convolution('fullres_conv', 3, 1)
 
     if trainset is not None:  # Add a loss for the train network
