@@ -87,11 +87,11 @@ def demosaic(depth, width, ksize, batch_size,
     if mosaic_type not in ['bayer', 'xtrans']:
         raise ValueError('Unknown mosaic type "{}".'.format(mosaic_type))
 
-    offset_x = 1
-    offset_y = 1
+    offset_x = 2
+    offset_y = 2
     if mosaic_type == 'xtrans':
-        offset_x = 5
-        offset_y = 5
+        offset_x = 6
+        offset_y = 6
 
     net = caffe.NetSpec()
 
