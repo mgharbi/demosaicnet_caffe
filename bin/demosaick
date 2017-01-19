@@ -28,7 +28,7 @@
 """Run the demosaicking network on an image or a directory containing multiple images."""
 
 import argparse
-import skimage.io
+import cv2
 import numpy as np
 import os
 import re
@@ -57,16 +57,32 @@ def _psnr(a, b, crop=0, maxval=1.0):
 
 
 def _uint2float(I):
-    I = I.astype(np.float32)
-    I = I*0.00390625
+    if I.dtype == np.uint8:
+        I = I.astype(np.float32)
+        I = I*0.00390625
+    elif I.dtype == np.uint16:
+        I = I.astype(np.float32)
+        I = I/65535.0
+    else:
+        raise ValueError("not a uint type {}".format(I.dtype))
+
     return I
 
 
-def _float2uint(I):
-    I /= 0.00390625
-    I += 0.5
-    I = np.clip(I,0,255)
-    I = I.astype(np.uint8)
+def _float2uint(I, dtype):
+    if dtype == np.uint8:
+        I /= 0.00390625
+        I += 0.5
+        I = np.clip(I,0,255)
+        I = I.astype(np.uint8)
+    elif dtype == np.uint16:
+        I *= 65535.0
+        I += 0.5
+        I = np.clip(I,0,65535)
+        I = I.astype(np.uint16)
+    else:
+        raise ValueError("not a uint type {}".format(dtype))
+
     return I
 
 
@@ -190,11 +206,15 @@ def main(args):
     n = 0
     for fname in inputs:
         print '+ Processing {}'.format(fname)
-        Iref = skimage.io.imread(fname)
+        Iref = cv2.imread(fname, -1)
+        if len(Iref.shape) == 4:  # removes alpha
+            Iref = Iref[:, :, :3]
+        if len(Iref.shape) == 3:  # CV color storage..
+            Iref = cv2.cvtColor(Iref,cv2.COLOR_BGR2RGB) 
         dtype = Iref.dtype
         if dtype not in [np.uint8, np.uint16]:
             raise ValueError('Input type not handled: {}'.format(dtype))
-        Iref = skimage.img_as_float(Iref)
+        Iref = _uint2float(Iref)
 
         if len(Iref.shape) == 2:
             # Offset the image to match the our mosaic pattern
@@ -272,17 +292,16 @@ def main(args):
             diff = np.abs((R-Iref))
             diff /= np.amax(diff)
             out = np.hstack((Iref, I, M, R, diff))
-            out = _float2uint(out)
+            out = _float2uint(out, dtype)
             print '  PSNR = {:.1f} dB, time = {} ms'.format(p, int(runtime))
         else:
             print '  - raw image without groundtruth, bypassing metric'
-            if dtype == np.uint16:
-                out = skimage.img_as_uint(R)
-            else:
-                out = skimage.img_as_ubyte(R)
+            out = _float2uint(R, dtype)
 
         outputname = os.path.join(args.output, os.path.split(fname)[-1])
-        skimage.io.imsave(outputname, out)
+        # CV color storage..
+        out = cv2.cvtColor(out, cv2.COLOR_RGB2BGR) 
+        cv2.imwrite(outputname, out)
 
     if has_groundtruth and n > 0:
         avg_psnr /= n

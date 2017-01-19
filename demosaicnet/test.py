@@ -90,6 +90,7 @@ class TestBayerMosaickLayer(TestPythonLayer):
         im /= 128
         skimage.io.imsave('output/test_bayer.png', im)
 
+
 class TestXTransMosaicLayer(TestPythonLayer):
     def setUp(self):
         net_file = self.python_net_file(16, 3, 6, 6, 'XTransMosaickLayer')
@@ -386,6 +387,7 @@ class TestReplicateLikeLayer(TestPythonLayer):
         assert list(out.shape) == sz
         for i in range(16):
             assert (out[i, 0, :, :] == self.net.blobs['data'].data[i]).all()
+
 
 class TestNormalizedEuclideaanLayer(TestPythonLayer):
     def python_net_file(self):
