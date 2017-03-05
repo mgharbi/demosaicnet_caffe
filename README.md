@@ -126,3 +126,13 @@ caffe train --solver output/dummy_net/solver.prototxt --log_dir output/dummy_net
 ### Running into issues?
 
 Contact Michael Gharbi <gharbi@mit.edu>
+
+
+### Known issues:
+
+* The latest version of CAFFE might break compatibility with this code, we tested against Caffe commit #42cd785
+* If you run into python errors, not finding the demosaicnet packages, try: 
+
+    export PYTHONPATH=$PYTHONPATH:""
+
+
