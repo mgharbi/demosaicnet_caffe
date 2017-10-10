@@ -95,7 +95,7 @@ python download_dataset.py
 
 ### Training a new model
 
-You will first need to generate a new network description by running 
+You will first need to generate a new network description by running:
 ```shell
 python bin/create_net --output output/new_net 
 ```
