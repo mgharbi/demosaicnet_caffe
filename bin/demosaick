@@ -216,6 +216,10 @@ def main(args):
             raise ValueError('Input type not handled: {}'.format(dtype))
         Iref = _uint2float(Iref)
 
+        if args.linear_input:
+          print "  - Input is linear, mapping to sRGB for processing"
+          Iref = np.power(Iref, 1.0/2.2)
+
         if len(Iref.shape) == 2:
             # Offset the image to match the our mosaic pattern
             if args.offset_x > 0:
@@ -285,6 +289,10 @@ def main(args):
                 Iref = Iref[1:, :]
             has_groundtruth = False
 
+        if args.linear_input:
+          print "  - Input is linear, mapping output back from sRGB"
+          R = np.power(R, 2.2)
+
         if has_groundtruth:
             p = _psnr(R, Iref, crop=crop)
             avg_psnr += p
@@ -297,6 +305,7 @@ def main(args):
         else:
             print '  - raw image without groundtruth, bypassing metric'
             out = _float2uint(R, dtype)
+
 
         outputname = os.path.join(args.output, os.path.split(fname)[-1])
         # CV color storage..
@@ -321,7 +330,9 @@ if __name__ == "__main__":
     parser.add_argument('--gpu', dest='gpu', action='store_true', help='use the GPU for processing.')
     parser.add_argument('--mosaic_type', type=str, default='bayer', choices=['bayer', 'xtrans'], help='type of mosaick (xtrans or bayer)')
 
-    parser.set_defaults(gpu=False)
+    parser.add_argument('--linear_input', dest='linear_input', action='store_true')
+
+    parser.set_defaults(gpu=False, linear_input=False)
 
     args = parser.parse_args()
 
