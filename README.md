@@ -1,5 +1,7 @@
 # Deep Joint Demosaicking and Denoising
 
+***This code is outdated, check <https://github.com/mgharbi/demosaicnet> instead>***
+
 SiGGRAPH Asia 2016
 
 Michaël Gharbi <gharbi@mit.edu>
