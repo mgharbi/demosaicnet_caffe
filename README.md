@@ -1,5 +1,5 @@
 
-***This code is outdated, check <https://github.com/mgharbi/demosaicnet> instead>***
+***This code is outdated, check <https://github.com/mgharbi/demosaicnet> instead***
 
 ---
 
