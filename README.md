@@ -1,6 +1,9 @@
-# Deep Joint Demosaicking and Denoising
 
 ***This code is outdated, check <https://github.com/mgharbi/demosaicnet> instead>***
+
+---
+
+# Deep Joint Demosaicking and Denoising
 
 SiGGRAPH Asia 2016
 
